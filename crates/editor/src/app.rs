@@ -4,6 +4,8 @@ use crate::camera::Camera;
 
 pub struct MapEditorApp {
     camera: Camera,
+    show_texture_browser: bool,
+    texture_search: String,
 }
 
 impl MapEditorApp {
@@ -17,6 +19,8 @@ impl MapEditorApp {
 
         Self {
             camera: Camera::new(),
+            show_texture_browser: true,
+            texture_search: String::new(),
         }
     }
 }
@@ -27,22 +31,144 @@ impl eframe::App for MapEditorApp {
         self.camera.update(ctx, dt);
         ctx.request_repaint();
 
+        egui::TopBottomPanel::top("menu_bar").show(ctx, |ui| {
+            egui::menu::bar(ui, |ui| {
+                ui.menu_button("File", |ui| {
+                    ui.button("New");
+                    ui.button("Open");
+                    ui.button("Save");
+                    ui.button("Save As");
+                    ui.separator();
+                    ui.button("Export");
+                    ui.separator();
+                    ui.button("Quit");
+                });
+                ui.menu_button("Edit", |ui| {
+                    ui.button("Undo");
+                    ui.button("Redo");
+                    ui.separator();
+                    ui.button("Cut");
+                    ui.button("Copy");
+                    ui.button("Paste");
+                    ui.separator();
+                    ui.button("Select All");
+                });
+                ui.menu_button("View", |ui| {
+                    ui.button("Toggle Grid");
+                    ui.button("Toggle Stats");
+                    ui.separator();
+                    if ui.button("Texture Browser").clicked() {
+                        self.show_texture_browser = !self.show_texture_browser;
+                        ui.close_menu();
+                    }
+                });
+                ui.menu_button("Help", |ui| {
+                    ui.button("Documentation");
+                    ui.button("About");
+                });
+            });
+        });
+
+        egui::TopBottomPanel::bottom("status_bar").show(ctx, |ui| {
+            ui.horizontal(|ui| {
+                ui.label("Grid: 32");
+                ui.separator();
+                ui.label("Pos: (0, 0, 0)");
+                ui.separator();
+                ui.label("Selected: None");
+                ui.separator();
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    ui.label("Map Editor v0.1.0");
+                });
+            });
+        });
+
         egui::SidePanel::left("left_panel")
             .resizable(true)
             .default_width(200.0)
             .show(ctx, |ui| {
-                egui::ScrollArea::vertical().show(ui, |ui| {
-                    ui.label("Tools");
-                });
+                ui.heading("Layers");
+                ui.separator();
+
+                egui::ScrollArea::vertical()
+                    .id_salt("layers_scroll")
+                    .max_height(300.0)
+                    .show(ui, |ui| {
+                        // Placeholder layer tree
+                        ui.collapsing("🔒 Geometry", |ui| {
+                            ui.collapsing("  Ground Floor", |ui| {
+                                ui.label("  □ Walls");
+                                ui.label("  □ Ceiling");
+                            });
+                            ui.collapsing("  Upper Floor", |ui| {
+                                ui.label("  □ Walls");
+                                ui.label("  □ Ceiling");
+                            });
+                        });
+                        ui.collapsing("👁 Enemies", |ui| {
+                            ui.label("  □ Spawners");
+                        });
+                        ui.collapsing("👁 Triggers", |ui| {
+                            ui.label("  □ Volume_01");
+                        });
+                    });
+
+                ui.separator();
+                ui.heading("Tools");
+                ui.separator();
+
+                egui::ScrollArea::vertical()
+                    .id_salt("tools_scroll")
+                    .show(ui, |ui| {
+                        ui.selectable_label(true,  "⬆ Select");
+                        ui.selectable_label(false, "✋ Translate");
+                        ui.selectable_label(false, "🔄 Rotate");
+                        ui.selectable_label(false, "✂ Clip");
+                        ui.selectable_label(false, "◆ Vertex");
+                    });
             });
 
         egui::SidePanel::right("right_panel")
             .resizable(true)
             .default_width(200.0)
             .show(ctx, |ui| {
-                egui::ScrollArea::vertical().show(ui, |ui| {
-                    ui.label("Properties");
-                });
+                ui.heading("Properties");
+                ui.separator();
+
+                egui::ScrollArea::vertical()
+                    .id_salt("properties_scroll")
+                    .max_height(300.0)
+                    .show(ui, |ui| {
+                        ui.label("Nothing selected");
+                    });
+
+                ui.separator();
+                ui.heading("Entities");
+                ui.separator();
+
+                egui::ScrollArea::vertical()
+                    .id_salt("entities_scroll")
+                    .show(ui, |ui| {
+                        ui.collapsing("Enemies", |ui| {
+                            ui.button("zombie_spawner");
+                            ui.button("zombie_walker");
+                            ui.button("zombie_runner");
+                        });
+                        ui.collapsing("Pickups", |ui| {
+                            ui.button("pickup_ammo");
+                            ui.button("pickup_health");
+                            ui.button("pickup_weapon");
+                        });
+                        ui.collapsing("Triggers", |ui| {
+                            ui.button("trigger_volume");
+                            ui.button("trigger_spawn_wave");
+                        });
+                        ui.collapsing("World", |ui| {
+                            ui.button("light_point");
+                            ui.button("light_spot");
+                            ui.button("player_start");
+                        });
+                    });
             });
 
         egui::CentralPanel::default().show(ctx, |ui| {
@@ -62,5 +188,57 @@ impl eframe::App for MapEditorApp {
 
             ui.painter().add(callback);
         });
+
+        egui::Window::new("Texture Browser")
+            .open(&mut self.show_texture_browser)
+            .resizable(true)
+            .default_width(400.0)
+            .default_height(300.0)
+            .show(ctx, |ui| {
+                // Search and tag filter bar
+                ui.horizontal(|ui| {
+                    ui.label("Search:");
+                    ui.text_edit_singleline(&mut self.texture_search);
+                });
+
+                ui.horizontal_wrapped(|ui| {
+                    ui.label("Tags:");
+                    ui.button("floor");
+                    ui.button("wall");
+                    ui.button("wood");
+                    ui.button("metal");
+                    ui.button("nature");
+                });
+
+                ui.small("No tags selected — showing all textures");
+
+                ui.separator();
+
+                ui.horizontal(|ui| {
+                    ui.label("Recently Used:");
+                });
+
+                ui.separator();
+
+                // Texture grid placeholder
+                egui::ScrollArea::vertical()
+                    .id_salt("texture_scroll")
+                    .show(ui, |ui| {
+                        egui::Grid::new("texture_grid")
+                            .num_columns(4)
+                            .spacing([8.0, 8.0])
+                            .show(ui, |ui| {
+                                for i in 0..16 {
+                                    ui.group(|ui| {
+                                        ui.set_min_size(egui::vec2(80.0, 80.0));
+                                        ui.label(format!("tex_{:02}", i));
+                                    });
+                                    if (i + 1) % 4 == 0 {
+                                        ui.end_row();
+                                    }
+                                }
+                            });
+                    });
+            });
     }
 }
