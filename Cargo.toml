@@ -1,0 +1,6 @@
+[workspace]
+members = [
+    "crates/map_format",
+    "crates/editor",
+]
+resolver = "2"

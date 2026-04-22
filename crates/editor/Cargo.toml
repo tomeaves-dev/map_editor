@@ -1,0 +1,13 @@
+[package]
+name = "editor"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+map_format = { path = "../map_format" }
+eframe = { version = "0.31", features = ["wgpu"] }
+egui = "0.31"
+wgpu = "24"
+egui-wgpu = "0.31"
+bytemuck = { version = "1", features = ["derive"] }
+glam = { version = "0.29", features = ["bytemuck"] }
