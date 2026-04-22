@@ -1,5 +1,8 @@
 use wgpu::util::DeviceExt;
-use crate::terrain::TerrainMesh;
+use map_format::brush::{Brush, Plane};
+use map_format::types::Vec3;
+use map_format::geometry::brush_to_mesh;
+use uuid::Uuid;
 
 pub struct ViewportRenderer {
     pipeline: wgpu::RenderPipeline,
@@ -52,22 +55,32 @@ impl ViewportRenderer {
             push_constant_ranges: &[],
         });
 
-        // Generate terrain mesh
-        let terrain = TerrainMesh::generate(256.0, 128, 32.0);
+        // Create a test box brush
+        let mut brush = Brush::new(Uuid::new_v4());
+        brush.planes = vec![
+            Plane { normal: Vec3 { x:  1.0, y: 0.0, z: 0.0 }, distance:  1.0 },
+            Plane { normal: Vec3 { x: -1.0, y: 0.0, z: 0.0 }, distance:  1.0 },
+            Plane { normal: Vec3 { x: 0.0, y:  1.0, z: 0.0 }, distance:  1.0 },
+            Plane { normal: Vec3 { x: 0.0, y: -1.0, z: 0.0 }, distance:  1.0 },
+            Plane { normal: Vec3 { x: 0.0, y: 0.0, z:  1.0 }, distance:  1.0 },
+            Plane { normal: Vec3 { x: 0.0, y: 0.0, z: -1.0 }, distance:  1.0 },
+        ];
+
+        let mesh = brush_to_mesh(&brush);
 
         let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("vertex_buffer"),
-            contents: bytemuck::cast_slice(&terrain.vertices),
+            contents: bytemuck::cast_slice(&mesh.vertices),
             usage: wgpu::BufferUsages::VERTEX,
         });
 
         let index_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("index_buffer"),
-            contents: bytemuck::cast_slice(&terrain.indices),
+            contents: bytemuck::cast_slice(&mesh.indices),
             usage: wgpu::BufferUsages::INDEX,
         });
 
-        let index_count = terrain.indices.len() as u32;
+        let index_count = mesh.indices.len() as u32;
 
         let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: Some("viewport_pipeline"),

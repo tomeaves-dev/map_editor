@@ -141,7 +141,7 @@ impl Camera {
         if response.hovered() {
             let scroll = ctx.input(|i| i.smooth_scroll_delta.y);
             if scroll != 0.0 {
-                self.update_speed_from_scroll(-scroll * 0.1);
+                self.update_speed_from_scroll(scroll * 0.01);
             }
         }
 

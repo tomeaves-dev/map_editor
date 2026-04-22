@@ -832,6 +832,7 @@ dependencies = [
  "glam",
  "map_format",
  "noise",
+ "uuid",
  "wgpu",
 ]
 

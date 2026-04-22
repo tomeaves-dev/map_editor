@@ -9,6 +9,7 @@ pub struct Brush {
     pub faces: Vec<Face>,
     pub layer_id: Uuid,
     pub group_id: Option<Uuid>,
+    pub inverted: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -33,6 +34,7 @@ impl Brush {
             faces: Vec::new(),
             layer_id,
             group_id: None,
+            inverted: false,
         }
     }
 }
