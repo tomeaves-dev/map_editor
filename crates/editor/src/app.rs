@@ -19,7 +19,7 @@ impl MapEditorApp {
 
         Self {
             camera: Camera::new(),
-            show_texture_browser: true,
+            show_texture_browser: false,
             texture_search: String::new(),
         }
     }
@@ -28,7 +28,6 @@ impl MapEditorApp {
 impl eframe::App for MapEditorApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         let dt = ctx.input(|i| i.unstable_dt);
-        self.camera.update(ctx, dt);
         ctx.request_repaint();
 
         egui::TopBottomPanel::top("menu_bar").show(ctx, |ui| {
@@ -73,9 +72,21 @@ impl eframe::App for MapEditorApp {
             ui.horizontal(|ui| {
                 ui.label("Grid: 32");
                 ui.separator();
-                ui.label("Pos: (0, 0, 0)");
+                ui.label(format!("Pos: ({:.0}, {:.0}, {:.0})",
+                                 self.camera.position.x,
+                                 self.camera.position.y,
+                                 self.camera.position.z,
+                ));
                 ui.separator();
                 ui.label("Selected: None");
+                ui.separator();
+                ui.label("Speed:");
+                ui.add_sized(
+                    [100.0, 20.0],
+                    egui::Slider::new(&mut self.camera.scroll_step, 0.0..=crate::camera::SCROLL_STEPS)
+                        .show_value(false)
+                );
+                ui.label(format!("{:.1}", self.camera.move_speed));
                 ui.separator();
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     ui.label("Map Editor v0.1.0");
@@ -172,10 +183,12 @@ impl eframe::App for MapEditorApp {
             });
 
         egui::CentralPanel::default().show(ctx, |ui| {
-            let (rect, _response) = ui.allocate_exact_size(
+            let (rect, response) = ui.allocate_exact_size(
                 ui.available_size(),
-                egui::Sense::focusable_noninteractive(),
+                egui::Sense::click_and_drag(),
             );
+
+            self.camera.update(ctx, &response, dt);
 
             let view = self.camera.view_matrix();
             let proj = self.camera.projection_matrix(rect.width() / rect.height());

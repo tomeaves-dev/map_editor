@@ -5,18 +5,28 @@ struct Uniforms {
 @group(0) @binding(0)
 var<uniform> uniforms: Uniforms;
 
+struct VertexInput {
+    @location(0) position: vec3<f32>,
+};
+
+struct VertexOutput {
+    @builtin(position) clip_position: vec4<f32>,
+    @location(0) height: f32,
+};
+
 @vertex
-fn vs_main(@builtin(vertex_index) in_vertex_index: u32) -> @builtin(position) vec4<f32> {
-    var positions = array<vec3<f32>, 3>(
-        vec3<f32>(-0.5, -0.5, -2.0),
-        vec3<f32>( 0.5, -0.5, -2.0),
-        vec3<f32>( 0.0,  0.5, -2.0),
-    );
-    let pos = vec4<f32>(positions[in_vertex_index], 1.0);
-    return uniforms.view_proj * pos;
+fn vs_main(in: VertexInput) -> VertexOutput {
+    var out: VertexOutput;
+    out.clip_position = uniforms.view_proj * vec4<f32>(in.position, 1.0);
+    out.height = in.position.y;
+    return out;
 }
 
 @fragment
-fn fs_main() -> @location(0) vec4<f32> {
-    return vec4<f32>(1.0, 0.5, 0.0, 1.0);
+fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
+    let t = (in.height + 32.0) / 64.0;
+    let low  = vec3<f32>(0.1, 0.3, 0.1);
+    let high = vec3<f32>(0.8, 0.8, 0.7);
+    let colour = mix(low, high, t);
+    return vec4<f32>(colour, 1.0);
 }

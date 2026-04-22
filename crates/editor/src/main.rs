@@ -1,10 +1,12 @@
 mod app;
 mod viewport;
 mod camera;
+mod terrain;
 
 fn main() {
     let options = eframe::NativeOptions {
-        viewport: egui::ViewportBuilder::default(),
+        viewport: egui::ViewportBuilder::default()
+            .with_inner_size([1280.0, 960.0]),
         renderer: eframe::Renderer::Wgpu,
         ..Default::default()
     };

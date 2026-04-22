@@ -11,3 +11,4 @@ wgpu = "24"
 egui-wgpu = "0.31"
 bytemuck = { version = "1", features = ["derive"] }
 glam = { version = "0.29", features = ["bytemuck"] }
+noise = "0.9"
