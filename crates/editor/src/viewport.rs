@@ -143,6 +143,7 @@ impl ViewportRenderer {
 
 pub struct ViewportCallback {
     pub view_proj: glam::Mat4,
+    pub camera_pos: glam::Vec3,
 }
 
 impl egui_wgpu::CallbackTrait for ViewportCallback {
@@ -154,6 +155,7 @@ impl egui_wgpu::CallbackTrait for ViewportCallback {
         _encoder: &mut wgpu::CommandEncoder,
         callback_resources: &mut egui_wgpu::CallbackResources,
     ) -> Vec<wgpu::CommandBuffer> {
+        // Update viewport uniform
         if let Some(renderer) = callback_resources.get::<ViewportRenderer>() {
             queue.write_buffer(
                 &renderer.uniform_buffer,
@@ -161,6 +163,19 @@ impl egui_wgpu::CallbackTrait for ViewportCallback {
                 bytemuck::cast_slice(&[self.view_proj.to_cols_array()]),
             );
         }
+
+        // Update grid uniform - view_proj + camera_pos + padding
+        if let Some(grid) = callback_resources.get::<crate::grid::GridRenderer>() {
+            let mut data = [0f32; 20];
+            let vp = self.view_proj.to_cols_array();
+            data[..16].copy_from_slice(&vp);
+            data[16] = self.camera_pos.x;
+            data[17] = self.camera_pos.y;
+            data[18] = self.camera_pos.z;
+            data[19] = 0.0; // padding
+            queue.write_buffer(&grid.uniform_buffer, 0, bytemuck::cast_slice(&data));
+        }
+
         Vec::new()
     }
 
@@ -170,6 +185,9 @@ impl egui_wgpu::CallbackTrait for ViewportCallback {
         render_pass: &mut wgpu::RenderPass<'static>,
         callback_resources: &egui_wgpu::CallbackResources,
     ) {
+        if let Some(grid) = callback_resources.get::<crate::grid::GridRenderer>() {
+            grid.paint(render_pass);
+        }
         if let Some(renderer) = callback_resources.get::<ViewportRenderer>() {
             renderer.paint(render_pass);
         }

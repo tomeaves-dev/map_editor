@@ -14,7 +14,9 @@ impl MapEditorApp {
 
         let _renderer = cc.wgpu_render_state.as_ref().map(|rs| {
             let renderer = ViewportRenderer::new(&rs.device, rs.target_format);
+            let grid = crate::grid::GridRenderer::new(&rs.device, rs.target_format);
             rs.renderer.write().callback_resources.insert(renderer);
+            rs.renderer.write().callback_resources.insert(grid);
         });
 
         Self {
@@ -196,7 +198,14 @@ impl eframe::App for MapEditorApp {
 
             let callback = egui_wgpu::Callback::new_paint_callback(
                 rect,
-                crate::viewport::ViewportCallback { view_proj },
+                crate::viewport::ViewportCallback {
+                    view_proj,
+                    camera_pos: glam::Vec3::new(
+                        self.camera.position.x,
+                        self.camera.position.y,
+                        self.camera.position.z,
+                    ),
+                },
             );
 
             ui.painter().add(callback);
