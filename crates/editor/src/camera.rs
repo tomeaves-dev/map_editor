@@ -18,9 +18,9 @@ pub struct Camera {
 impl Camera {
     pub fn new() -> Self {
         Self {
-            position: Vec3::new(0.0, 2.0, 5.0),
-            yaw: 0.0,
-            pitch: 0.0,
+            position: Vec3::new(7.0, 5.0, 7.0),
+            yaw: -std::f32::consts::FRAC_PI_4, // 45 degrees
+            pitch: -0.5,
             move_speed: 5.0,
             pan_velocity: Vec2::ZERO,
             scroll_step: 5.0,

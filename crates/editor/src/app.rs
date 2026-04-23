@@ -273,6 +273,12 @@ impl eframe::App for MapEditorApp {
                 }
             }
 
+            let selected_center = self.selected_brush.and_then(|id| {
+                self.document.brushes.iter()
+                    .find(|b| b.id == id)
+                    .map(|b| brush_center(b))
+            });
+
             let callback = egui_wgpu::Callback::new_paint_callback(
                 rect,
                 crate::viewport::ViewportCallback {
@@ -282,10 +288,41 @@ impl eframe::App for MapEditorApp {
                         self.camera.position.y,
                         self.camera.position.z,
                     ),
+                    selected: self.selected_brush.is_some(),
+                    selected_center,
                 },
             );
 
             ui.painter().add(callback);
+
+            // Draw center dot for selected brush
+            if let Some(center) = selected_center {
+                let clip = view_proj * glam::Vec4::new(center.x, center.y, center.z, 1.0);
+
+                // Only draw if in front of camera
+                if clip.w > 0.0 {
+                    let ndc = glam::Vec2::new(clip.x / clip.w, clip.y / clip.w);
+                    let screen_x = rect.min.x + (ndc.x + 1.0) / 2.0 * rect.width();
+                    let screen_y = rect.min.y + (1.0 - ndc.y) / 2.0 * rect.height();
+                    let screen_pos = egui::pos2(screen_x, screen_y);
+
+                    let painter = ui.painter_at(rect);
+
+                    // Outer circle
+                    painter.circle_filled(
+                        screen_pos,
+                        6.0,
+                        egui::Color32::from_rgb(255, 140, 30),
+                    );
+
+                    // Inner dot
+                    painter.circle_filled(
+                        screen_pos,
+                        3.0,
+                        egui::Color32::WHITE,
+                    );
+                }
+            }
         });
 
         // Floating texture browser
@@ -338,4 +375,16 @@ impl eframe::App for MapEditorApp {
                     });
             });
     }
+}
+
+fn brush_center(brush: &map_format::brush::Brush) -> glam::Vec3 {
+    let mesh = map_format::geometry::brush_to_mesh(brush);
+    if mesh.vertices.is_empty() {
+        return glam::Vec3::ZERO;
+    }
+    let sum = mesh.vertices.iter().fold(
+        glam::Vec3::ZERO,
+        |acc, v| acc + glam::Vec3::new(v[0], v[1], v[2])
+    );
+    sum / mesh.vertices.len() as f32
 }
