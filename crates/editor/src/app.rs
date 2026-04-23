@@ -1,11 +1,19 @@
 use eframe::egui_wgpu;
+use uuid::Uuid;
+use map_format::brush::{Brush, Plane};
+use map_format::document::MapDocument;
+use map_format::types::Vec3 as MapVec3;
 use crate::viewport::ViewportRenderer;
 use crate::camera::Camera;
+use crate::tools::ToolKind;
 
 pub struct MapEditorApp {
     camera: Camera,
     show_texture_browser: bool,
     texture_search: String,
+    active_tool: ToolKind,
+    document: MapDocument,
+    selected_brush: Option<Uuid>,
 }
 
 impl MapEditorApp {
@@ -19,10 +27,29 @@ impl MapEditorApp {
             rs.renderer.write().callback_resources.insert(grid);
         });
 
+        let mut document = MapDocument::new("Untitled");
+        let layer = map_format::layer::Layer::new_brush("Default", false);
+        let layer_id = layer.id;
+        document.layers.push(layer);
+
+        let mut brush = Brush::new(layer_id);
+        brush.planes = vec![
+            Plane { normal: MapVec3 { x:  1.0, y: 0.0, z: 0.0 }, distance:  1.0 },
+            Plane { normal: MapVec3 { x: -1.0, y: 0.0, z: 0.0 }, distance:  1.0 },
+            Plane { normal: MapVec3 { x: 0.0, y:  1.0, z: 0.0 }, distance:  1.0 },
+            Plane { normal: MapVec3 { x: 0.0, y: -1.0, z: 0.0 }, distance:  1.0 },
+            Plane { normal: MapVec3 { x: 0.0, y: 0.0, z:  1.0 }, distance:  1.0 },
+            Plane { normal: MapVec3 { x: 0.0, y: 0.0, z: -1.0 }, distance:  1.0 },
+        ];
+        document.brushes.push(brush);
+
         Self {
             camera: Camera::new(),
             show_texture_browser: false,
             texture_search: String::new(),
+            active_tool: ToolKind::Select,
+            document,
+            selected_brush: None,
         }
     }
 }
@@ -30,33 +57,33 @@ impl MapEditorApp {
 impl eframe::App for MapEditorApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         let dt = ctx.input(|i| i.unstable_dt);
-        ctx.request_repaint();
 
+        // Menu bar
         egui::TopBottomPanel::top("menu_bar").show(ctx, |ui| {
             egui::menu::bar(ui, |ui| {
                 ui.menu_button("File", |ui| {
-                    ui.button("New");
-                    ui.button("Open");
-                    ui.button("Save");
-                    ui.button("Save As");
+                    let _ = ui.button("New");
+                    let _ = ui.button("Open");
+                    let _ = ui.button("Save");
+                    let _ = ui.button("Save As");
                     ui.separator();
-                    ui.button("Export");
+                    let _ = ui.button("Export");
                     ui.separator();
-                    ui.button("Quit");
+                    let _ = ui.button("Quit");
                 });
                 ui.menu_button("Edit", |ui| {
-                    ui.button("Undo");
-                    ui.button("Redo");
+                    let _ = ui.button("Undo");
+                    let _ = ui.button("Redo");
                     ui.separator();
-                    ui.button("Cut");
-                    ui.button("Copy");
-                    ui.button("Paste");
+                    let _ = ui.button("Cut");
+                    let _ = ui.button("Copy");
+                    let _ = ui.button("Paste");
                     ui.separator();
-                    ui.button("Select All");
+                    let _ = ui.button("Select All");
                 });
                 ui.menu_button("View", |ui| {
-                    ui.button("Toggle Grid");
-                    ui.button("Toggle Stats");
+                    let _ = ui.button("Toggle Grid");
+                    let _ = ui.button("Toggle Stats");
                     ui.separator();
                     if ui.button("Texture Browser").clicked() {
                         self.show_texture_browser = !self.show_texture_browser;
@@ -64,23 +91,55 @@ impl eframe::App for MapEditorApp {
                     }
                 });
                 ui.menu_button("Help", |ui| {
-                    ui.button("Documentation");
-                    ui.button("About");
+                    let _ = ui.button("Documentation");
+                    let _ = ui.button("About");
                 });
             });
         });
 
+        // Toolbar
+        egui::TopBottomPanel::top("toolbar").show(ctx, |ui| {
+            ui.horizontal(|ui| {
+                if ui.selectable_label(
+                    matches!(self.active_tool, ToolKind::Select),
+                    "⬆ Select"
+                ).clicked() {
+                    self.active_tool = ToolKind::Select;
+                }
+                ui.separator();
+                if ui.selectable_label(
+                    matches!(self.active_tool, ToolKind::Translate),
+                    "✋ Translate"
+                ).clicked() {
+                    self.active_tool = ToolKind::Translate;
+                }
+                ui.separator();
+                if ui.selectable_label(
+                    matches!(self.active_tool, ToolKind::Create),
+                    "◻ Create"
+                ).clicked() {
+                    self.active_tool = ToolKind::Create;
+                }
+            });
+        });
+
+        // Status bar
         egui::TopBottomPanel::bottom("status_bar").show(ctx, |ui| {
             ui.horizontal(|ui| {
-                ui.label("Grid: 32");
+                ui.label("Grid: 1m");
                 ui.separator();
-                ui.label(format!("Pos: ({:.0}, {:.0}, {:.0})",
+                ui.label(format!("Pos: ({:.1}, {:.1}, {:.1})",
                                  self.camera.position.x,
                                  self.camera.position.y,
                                  self.camera.position.z,
                 ));
                 ui.separator();
-                ui.label("Selected: None");
+                ui.label(format!("Selected: {}",
+                                 match self.selected_brush {
+                                     Some(id) => format!("{}", &id.to_string()[..8]),
+                                     None => "None".to_string(),
+                                 }
+                ));
                 ui.separator();
                 ui.label("Speed:");
                 ui.add_sized(
@@ -96,6 +155,7 @@ impl eframe::App for MapEditorApp {
             });
         });
 
+        // Left panel - layers
         egui::SidePanel::left("left_panel")
             .resizable(true)
             .default_width(200.0)
@@ -105,9 +165,7 @@ impl eframe::App for MapEditorApp {
 
                 egui::ScrollArea::vertical()
                     .id_salt("layers_scroll")
-                    .max_height(300.0)
                     .show(ui, |ui| {
-                        // Placeholder layer tree
                         ui.collapsing("🔒 Geometry", |ui| {
                             ui.collapsing("  Ground Floor", |ui| {
                                 ui.label("  □ Walls");
@@ -125,22 +183,9 @@ impl eframe::App for MapEditorApp {
                             ui.label("  □ Volume_01");
                         });
                     });
-
-                ui.separator();
-                ui.heading("Tools");
-                ui.separator();
-
-                egui::ScrollArea::vertical()
-                    .id_salt("tools_scroll")
-                    .show(ui, |ui| {
-                        ui.selectable_label(true,  "⬆ Select");
-                        ui.selectable_label(false, "✋ Translate");
-                        ui.selectable_label(false, "🔄 Rotate");
-                        ui.selectable_label(false, "✂ Clip");
-                        ui.selectable_label(false, "◆ Vertex");
-                    });
             });
 
+        // Right panel - properties + entities
         egui::SidePanel::right("right_panel")
             .resizable(true)
             .default_width(200.0)
@@ -163,27 +208,28 @@ impl eframe::App for MapEditorApp {
                     .id_salt("entities_scroll")
                     .show(ui, |ui| {
                         ui.collapsing("Enemies", |ui| {
-                            ui.button("zombie_spawner");
-                            ui.button("zombie_walker");
-                            ui.button("zombie_runner");
+                            let _ = ui.button("zombie_spawner");
+                            let _ = ui.button("zombie_walker");
+                            let _ = ui.button("zombie_runner");
                         });
                         ui.collapsing("Pickups", |ui| {
-                            ui.button("pickup_ammo");
-                            ui.button("pickup_health");
-                            ui.button("pickup_weapon");
+                            let _ = ui.button("pickup_ammo");
+                            let _ = ui.button("pickup_health");
+                            let _ = ui.button("pickup_weapon");
                         });
                         ui.collapsing("Triggers", |ui| {
-                            ui.button("trigger_volume");
-                            ui.button("trigger_spawn_wave");
+                            let _ = ui.button("trigger_volume");
+                            let _ = ui.button("trigger_spawn_wave");
                         });
                         ui.collapsing("World", |ui| {
-                            ui.button("light_point");
-                            ui.button("light_spot");
-                            ui.button("player_start");
+                            let _ = ui.button("light_point");
+                            let _ = ui.button("light_spot");
+                            let _ = ui.button("player_start");
                         });
                     });
             });
 
+        // Central viewport
         egui::CentralPanel::default().show(ctx, |ui| {
             let (rect, response) = ui.allocate_exact_size(
                 ui.available_size(),
@@ -195,6 +241,37 @@ impl eframe::App for MapEditorApp {
             let view = self.camera.view_matrix();
             let proj = self.camera.projection_matrix(rect.width() / rect.height());
             let view_proj = proj * view;
+
+            // Handle selection on click
+            if matches!(self.active_tool, ToolKind::Select) {
+                if response.clicked() {
+                    if let Some(mouse_pos) = ctx.input(|i| i.pointer.interact_pos()) {
+                        let ray = crate::raycast::Ray::from_screen(
+                            mouse_pos,
+                            rect,
+                            view,
+                            proj,
+                        );
+
+                        // Test ray against all brushes, find closest hit
+                        let mut closest: Option<(Uuid, f32)> = None;
+
+                        for brush in &self.document.brushes {
+                            if let Some(hit) = ray.intersect_brush(&brush.planes) {
+                                match closest {
+                                    None => closest = Some((brush.id, hit.distance)),
+                                    Some((_, d)) if hit.distance < d => {
+                                        closest = Some((brush.id, hit.distance));
+                                    }
+                                    _ => {}
+                                }
+                            }
+                        }
+
+                        self.selected_brush = closest.map(|(id, _)| id);
+                    }
+                }
+            }
 
             let callback = egui_wgpu::Callback::new_paint_callback(
                 rect,
@@ -211,13 +288,13 @@ impl eframe::App for MapEditorApp {
             ui.painter().add(callback);
         });
 
+        // Floating texture browser
         egui::Window::new("Texture Browser")
             .open(&mut self.show_texture_browser)
             .resizable(true)
             .default_width(400.0)
             .default_height(300.0)
             .show(ctx, |ui| {
-                // Search and tag filter bar
                 ui.horizontal(|ui| {
                     ui.label("Search:");
                     ui.text_edit_singleline(&mut self.texture_search);
@@ -225,15 +302,14 @@ impl eframe::App for MapEditorApp {
 
                 ui.horizontal_wrapped(|ui| {
                     ui.label("Tags:");
-                    ui.button("floor");
-                    ui.button("wall");
-                    ui.button("wood");
-                    ui.button("metal");
-                    ui.button("nature");
+                    let _ = ui.button("floor");
+                    let _ = ui.button("wall");
+                    let _ = ui.button("wood");
+                    let _ = ui.button("metal");
+                    let _ = ui.button("nature");
                 });
 
                 ui.small("No tags selected — showing all textures");
-
                 ui.separator();
 
                 ui.horizontal(|ui| {
@@ -242,7 +318,6 @@ impl eframe::App for MapEditorApp {
 
                 ui.separator();
 
-                // Texture grid placeholder
                 egui::ScrollArea::vertical()
                     .id_salt("texture_scroll")
                     .show(ui, |ui| {

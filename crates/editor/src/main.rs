@@ -2,6 +2,8 @@ mod app;
 mod viewport;
 mod camera;
 mod grid;
+mod tools;
+mod raycast;
 
 fn main() {
     let options = eframe::NativeOptions {
